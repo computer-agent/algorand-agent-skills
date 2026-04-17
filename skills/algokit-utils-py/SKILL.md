@@ -2,13 +2,16 @@
 name: algokit-utils-py
 description: >
   Guide for writing Python code with AlgoKit Utils (`algokit-utils`).
-  Use this skill whenever the user is building on Algorand with Python — including client setup,
-  account management, payments, asset operations (ASA create/opt-in/transfer/freeze/destroy),
-  atomic transaction groups, smart contract deployment and interaction (AppFactory, AppClient,
-  ARC-56/ARC-32 app specs), raw app calls, TEAL compilation, key registration, network management,
-  and error handling. Trigger on imports from `algokit_utils`, references to `AlgorandClient`,
-  `AppFactory`, `AppClient`, `AlgoAmount`, or any Algorand Python development context. Also trigger
-  when the user mentions AlgoKit, algokit-utils, or asks how to do something on Algorand in Python.
+  Use this skill whenever the user is building on Algorand with Python — client setup,
+  account management, payments, ASA operations, atomic transaction groups, smart contract
+  deployment and interaction (AppFactory, AppClient, ARC-56/ARC-32 specs), raw app calls,
+  TEAL compilation, key registration, network management, error handling, and the low-level
+  crypto primitives in `algokit_crypto` (Ed25519 keygen/signing/verification, Peikert xHD
+  BIP44 wallets, wrapped-secret patterns) and `algokit_common` (`sha512_256`). Trigger on
+  imports from `algokit_utils` or `algokit_crypto`, references to `AlgorandClient`,
+  `AppFactory`, `AppClient`, `AlgoAmount`, `ed25519_generator`, `peikert_hd_wallet_generator`,
+  `sha512_256`, `WrappedEd25519Seed`, or `RawEd25519Signer`, or any Python code that builds on
+  Algorand.
 ---
 
 # AlgoKit Utils Python — Quick Reference
@@ -42,6 +45,15 @@ to the user's question — this keeps context lean. The table below maps topics 
   `.app_delete()`, `.app_call_method_call()`, `.app_create_method_call()` when you don't have an app spec.
 - **TEAL compilation** via `algorand.app.compile_teal()` and `.compile_teal_template()` with
   caching and template variable substitution.
+- **Crypto primitives** live in the standalone `algokit_crypto` package that ships alongside
+  `algokit-utils`. This module carries Ed25519 keypair generation/signing/verification
+  (`ed25519_generator`, `ed25519_verifier`), the Peikert xHD BIP44 wallet
+  (`peikert_hd_wallet_generator`), and the wrapped-secret pattern for HSM/KMS-backed keys
+  (`WrappedEd25519Seed`, `WrappedHdExtendedPrivateKey`,
+  `ed25519_signing_key_from_wrapped_secret`). The Algorand SHA-512/256 primitive lives in
+  `algokit_common` as `sha512_256`. Reach for these when you are building a custom
+  `RawEd25519Signer`, deriving deterministic accounts from a seed, or computing
+  Algorand-compatible hashes outside the transaction path.
 
 ## Key Python-specific differences from TypeScript
 
@@ -74,6 +86,10 @@ Read only the file(s) relevant to the user's current question.
 | `references/network-and-client-management.md` | Algod/indexer/kmd access, LocalNet detection, validity window, params cache |
 | `references/configuration-and-global-settings.md` | `populate_app_call_resources`, debug mode, trace collection, logging |
 | `references/error-handling.md` | LogicError, parse_logic_error, TransactionComposerError, error transformers |
+| `references/ed25519.md` | Ed25519 keypair generation, raw signers, signature verification, pinned PyNaCl backend |
+| `references/hashing.md` | Algorand SHA-512/256 `sha512_256`, multisig and logic sig address construction |
+| `references/hd-wallets.md` | `peikert_hd_wallet_generator`, BIP44 paths, multi-account derivation, wiring into `AccountManager` |
+| `references/wrapped-secrets.md` | `WrappedEd25519Seed`, `WrappedHdExtendedPrivateKey`, `ed25519_signing_key_from_wrapped_secret`, HSM/KMS patterns |
 
 ## Common patterns to remember
 
@@ -86,3 +102,18 @@ Read only the file(s) relevant to the user's current question.
 - `factory.deploy()` is idempotent — creates, updates, replaces, or no-ops based on state.
 - Use `config.configure(populate_app_call_resources=True)` to auto-populate app call resources.
 - `Method.from_signature("hello(string)string")` for raw ABI method calls without app spec.
+- `generate_address_with_signers(ed25519_pubkey, raw_ed25519_signer)` from `algokit_transact`
+  takes the pubkey and raw signer as separate positional args (plus an optional
+  `sending_address` kwarg for rekeyed wiring) — unlike the TypeScript helper, it does not
+  accept a single `Ed25519SigningKey` object. Pass its `.signer` to
+  `algorand.account.set_signer(addr, signer)` — hardware wallets, KMS, and HD-derived keys all
+  plug in through this one entry point.
+- `ed25519_generator`, `ed25519_verifier`, and `ed25519_signing_key_from_wrapped_secret` are
+  aliases that currently point at the PyNaCl-backed `pynacl_*` variants. Import the `pynacl_*`
+  names directly when you need to pin the backend across future releases.
+- `ed25519_signing_key_from_wrapped_secret` always zeroes the unwrapped `bytearray` after use
+  and raises an `ExceptionGroup` (from the `exceptiongroup` backport) when both the operation
+  and the re-wrap fail — never catch and discard it silently.
+- The Peikert HD wallet seed size is **64 bytes** in Python (vs. 32 bytes in TypeScript).
+- Python crypto is fully synchronous — `raw_ed25519_signer(bytes)` returns `bytes`, not a
+  coroutine.

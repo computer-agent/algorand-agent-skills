@@ -5,7 +5,7 @@
 Call an existing application without an ABI method (a "bare" no-op call).
 
 ```typescript
-import { AlgorandClient } from "@algorandfoundation/algokit-utils-ts";
+import { AlgorandClient } from "@algorandfoundation/algokit-utils";
 
 const algorand = AlgorandClient.defaultLocalNet();
 
@@ -108,7 +108,7 @@ creator (or the address the app's approval program authorises for deletion).
 Invoke a specific ABI method on an existing application without using an AppClient.
 
 ```typescript
-import { ABIMethod } from "@algorandfoundation/algokit-abi";
+import { ABIMethod } from "@algorandfoundation/algokit-utils/abi";
 
 const method = new ABIMethod({
   name: "hello",
